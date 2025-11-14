@@ -14,10 +14,14 @@ import {
   getUserById,
   getCreatorActiveStories,
   hasUnviewedStories,
+  canUserPerformActionForCreator,
+  hasUserGainedXPForPost,
+  addXP,
+  trackXPGained,
+  getXPForAction,
 } from "@/lib/firebase/firestore"
-import { toggleLikeAction } from "@/app/actions/likes"
 import { useAuthState } from "react-firebase-hooks/auth"
-import { auth } from "@/lib/firebase/config"
+import { auth, db } from "@/lib/firebase/config"
 import { formatDistanceToNow } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { PremiumContentOverlay } from "./premium-content-overlay"
@@ -25,6 +29,7 @@ import { useToast } from "@/components/toast-provider"
 import { TipModal } from "./tip-modal"
 import { StoryRingAvatar } from "./story-ring-avatar"
 import { StoryViewer } from "./story-viewer"
+import { collection, query, where, getDocs, addDoc, deleteDoc, serverTimestamp, doc, updateDoc, increment, getDoc } from "firebase/firestore"
 
 interface PostCardProps {
   post: {
@@ -130,35 +135,92 @@ export const PostCard = memo(function PostCard({ post, onLike, onRetweet }: Post
   const handleLike = async () => {
     if (!user || !post.id) return
 
+    const wasLiked = liked
+    const previousCount = likesCount
+
+    // Optimistic update
+    setLiked(!wasLiked)
+    setLikesCount((prev) => (wasLiked ? Math.max(0, prev - 1) : prev + 1))
+
     try {
-      const wasLiked = liked
-      const previousCount = likesCount
-
-      setLiked(!wasLiked)
-      setLikesCount((prev) => {
-        const currentCount = prev || 0
-        return wasLiked ? Math.max(0, currentCount - 1) : currentCount + 1
-      })
-
-      const result = await toggleLikeAction({ postId: post.id, userId: user.uid })
-
-      if (!result.success) {
-        console.error("Error toggling like:", result.error)
-        setLiked(wasLiked)
-        setLikesCount(previousCount)
-        return
+      // Verificar se o usuário é criadora
+      const userDoc = await getDoc(doc(db, "users", user.uid))
+      if (!userDoc.exists()) {
+        throw new Error("Usuário não encontrado")
       }
 
-      setLiked(result.liked || false)
-      setLikesCount(result.likeCount || 0)
-
-      if (result.xpGained && result.xpGained > 0) {
-        showXP(result.xpGained, "Você ganhou XP por curtir este post!")
+      const userData = userDoc.data()
+      if (userData.userType === "creator") {
+        throw new Error("Criadoras não podem curtir posts")
       }
 
-      onLike?.(post.id, result.likeCount || 0)
+      // Verificar permissões
+      const permissionCheck = await canUserPerformActionForCreator(user.uid, post.authorId, "like")
+      if (!permissionCheck.canPerform) {
+        throw new Error(permissionCheck.reason || "Você não tem permissão para curtir posts desta criadora")
+      }
+
+      // Buscar like existente
+      const likesRef = collection(db, "likes")
+      const q = query(likesRef, where("userId", "==", user.uid), where("postId", "==", post.id))
+      const querySnapshot = await getDocs(q)
+
+      if (querySnapshot.empty) {
+        // Adicionar curtida
+        await addDoc(likesRef, {
+          userId: user.uid,
+          postId: post.id,
+          createdAt: serverTimestamp(),
+        })
+
+        await updateDoc(doc(db, "posts", post.id), {
+          likes: increment(1),
+        })
+
+        // Verificar e adicionar XP
+        const hasGainedXP = await hasUserGainedXPForPost(user.uid, post.id, "like")
+        let xpGained = 0
+
+        if (!hasGainedXP) {
+          xpGained = getXPForAction("like")
+          await addXP(user.uid, xpGained, "like")
+          await trackXPGained(user.uid, post.id, "like", xpGained)
+          showXP(xpGained, "Você ganhou XP por curtir este post!")
+        }
+
+        // Atualizar contagem
+        const updatedPostDoc = await getDoc(doc(db, "posts", post.id))
+        const newLikeCount = updatedPostDoc.data()?.likes || likesCount + 1
+
+        setLiked(true)
+        setLikesCount(newLikeCount)
+        onLike?.(post.id, newLikeCount)
+      } else {
+        // Remover curtida
+        const likeDoc = querySnapshot.docs[0]
+        await deleteDoc(likeDoc.ref)
+
+        await updateDoc(doc(db, "posts", post.id), {
+          likes: increment(-1),
+        })
+
+        // Atualizar contagem
+        const updatedPostDoc = await getDoc(doc(db, "posts", post.id))
+        const newLikeCount = updatedPostDoc.data()?.likes || Math.max(0, likesCount - 1)
+
+        setLiked(false)
+        setLikesCount(newLikeCount)
+        onLike?.(post.id, newLikeCount)
+      }
     } catch (error) {
-      console.error("Error toggling like:", error)
+      console.error("Erro ao curtir post:", error)
+      
+      // Revert optimistic update on error
+      setLiked(wasLiked)
+      setLikesCount(previousCount)
+      
+      const errorMessage = error instanceof Error ? error.message : "Erro ao curtir post"
+      showXP(0, errorMessage)
     }
   }
 
