@@ -677,14 +677,25 @@ export const updateCreatorContentCount = async (creatorUid: string, incrementVal
 }
 
 // Funções para Curtidas
-export const toggleLike = async (userId: string, postId: string) => {
+export async function toggleLike(userId: string, postId: string, showXP?: (xp: number, message: string) => void) {
+  console.log("[v0] toggleLike called with userId:", userId, "postId:", postId)
+  console.log("[v0] Current auth state:", auth.currentUser?.uid)
+  
+  // Check if user is authenticated
+  if (!auth.currentUser) {
+    console.error("[v0] No authenticated user found in toggleLike")
+    throw new Error("Você precisa estar autenticado para curtir posts")
+  }
+  
+  // Verify the userId matches the authenticated user
+  if (auth.currentUser.uid !== userId) {
+    console.error("[v0] User ID mismatch. Auth:", auth.currentUser.uid, "Provided:", userId)
+    throw new Error("Erro de autenticação")
+  }
+
+  console.log("[v0] Authentication verified, proceeding with like toggle")
+
   try {
-    console.log("[v0] toggleLike called with:", { userId, postId })
-    
-    if (!auth.currentUser || auth.currentUser.uid !== userId) {
-      throw new Error("Você precisa estar autenticado para curtir posts")
-    }
-    
     const userDoc = await getDoc(doc(db, "users", userId))
     if (!userDoc.exists()) {
       throw new Error("Usuário não encontrado")
@@ -735,6 +746,9 @@ export const toggleLike = async (userId: string, postId: string) => {
         xpGained = getXPForAction("like")
         await addXP(userId, xpGained, "like")
         await trackXPGained(userId, postId, "like", xpGained)
+        if (showXP) {
+          showXP(xpGained, "Você ganhou XP por curtir um post!")
+        }
       }
 
       const updatedPostDoc = await getDoc(doc(db, "posts", postId))
@@ -1074,6 +1088,27 @@ export const getUserByUsername = async (username: string): Promise<UserProfile |
     return null
   } catch (error) {
     console.error("[v0] Error getting user by username:", error)
+    return null
+  }
+}
+
+export const getUserByEmail = async (email: string): Promise<UserProfile | null> => {
+  try {
+    console.log("[v0] Getting user by email:", email)
+    const usersRef = collection(db, "users")
+    const q = query(usersRef, where("email", "==", email), limit(1))
+    const querySnapshot = await getDocs(q)
+
+    if (querySnapshot.empty) {
+      console.log("[v0] No user found with email:", email)
+      return null
+    }
+
+    const doc = querySnapshot.docs[0]
+    console.log("[v0] Found user by email:", doc.id)
+    return { uid: doc.id, ...doc.data() } as UserProfile
+  } catch (error) {
+    console.error("[v0] Error getting user by email:", error)
     return null
   }
 }

@@ -14,6 +14,7 @@ import {
   createCreatorProfile,
   isUserCreator,
   addCreatorToNetworkWithCode,
+  getUserByEmail,
 } from "./firestore"
 import { getRandomAvatar } from "@/lib/avatars"
 
@@ -40,17 +41,23 @@ export const createUser = async (
   password: string,
 ): Promise<{ user: User | null; error: string | null }> => {
   try {
+    console.log("[v0] Creating user with username:", username, "email:", email)
+    
     if (!auth) {
       return { user: null, error: "Serviço de autenticação não disponível" }
     }
 
     const existingUser = await getUserByUsername(username)
     if (existingUser) {
+      console.log("[v0] Username already exists:", username)
       return { user: null, error: "Nome de usuário já está em uso" }
     }
 
+    console.log("[v0] Creating Firebase user...")
     const userCredential = await createUserWithEmailAndPassword(auth, email, password)
+    console.log("[v0] Firebase user created with UID:", userCredential.user.uid)
 
+    console.log("[v0] Updating display name to:", username)
     await updateProfile(userCredential.user, {
       displayName: username,
     })
@@ -60,15 +67,21 @@ export const createUser = async (
       displayName: username,
       bio: "",
       profileImage: getRandomAvatar(),
-      email, // Store real email
+      email,
       createdAt: new Date(),
     }
 
+    console.log("[v0] Creating Firestore document for user...")
     await ensureUserDocument(userCredential.user.uid, userProfile)
+    console.log("[v0] Firestore document created")
+    
+    console.log("[v0] Creating welcome notification...")
     await createWelcomeNotification(userCredential.user.uid)
+    console.log("[v0] User creation complete!")
 
     return { user: userCredential.user, error: null }
   } catch (error: any) {
+    console.error("[v0] Error creating user:", error)
     if (error.code === "auth/email-already-in-use") {
       return { user: null, error: "Email já está em uso" }
     }
@@ -180,14 +193,30 @@ export const signInNormalUser = async (
   password: string,
 ): Promise<{ user: User | null; error: string | null }> => {
   try {
+    console.log("[v0] Attempting to sign in normal user with username:", username)
+    
     if (!auth) {
       return { user: null, error: "Serviço de autenticação não disponível" }
     }
 
-    const email = `${username}@deluxeisa.app`
+    // First, get the user document by username to find the real email
+    console.log("[v0] Looking up user by username...")
+    const userDoc = await getUserByUsername(username)
+    
+    if (!userDoc) {
+      console.log("[v0] User not found by username")
+      return { user: null, error: "Usuário ou senha incorretos" }
+    }
+
+    const email = userDoc.email
+    console.log("[v0] Found user email:", email)
+    
+    console.log("[v0] Signing in with email...")
     const userCredential = await signInWithEmailAndPassword(auth, email, password)
+    console.log("[v0] Sign in successful, UID:", userCredential.user.uid)
 
     const isCreator = await isUserCreator(userCredential.user.uid)
+    console.log("[v0] Is creator check:", isCreator)
 
     if (isCreator) {
       await signOut(auth)
@@ -200,17 +229,20 @@ export const signInNormalUser = async (
       })
     }
 
+    console.log("[v0] Ensuring user document exists...")
     await ensureUserDocument(userCredential.user.uid, {
       username,
       displayName: username,
-      bio: "",
-      profileImage: getRandomAvatar(),
+      bio: userDoc.bio || "",
+      profileImage: userDoc.profileImage || getRandomAvatar(),
       email,
-      createdAt: new Date(),
+      createdAt: userDoc.createdAt || new Date(),
     })
+    console.log("[v0] Login complete!")
 
     return { user: userCredential.user, error: null }
   } catch (error: any) {
+    console.error("[v0] Error signing in normal user:", error)
     return { user: null, error: "Usuário ou senha incorretos" }
   }
 }
