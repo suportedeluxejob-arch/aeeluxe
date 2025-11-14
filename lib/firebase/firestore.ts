@@ -679,6 +679,12 @@ export const updateCreatorContentCount = async (creatorUid: string, incrementVal
 // Funções para Curtidas
 export const toggleLike = async (userId: string, postId: string) => {
   try {
+    console.log("[v0] toggleLike called with:", { userId, postId })
+    
+    if (!auth.currentUser || auth.currentUser.uid !== userId) {
+      throw new Error("Você precisa estar autenticado para curtir posts")
+    }
+    
     const userDoc = await getDoc(doc(db, "users", userId))
     if (!userDoc.exists()) {
       throw new Error("Usuário não encontrado")
@@ -711,6 +717,7 @@ export const toggleLike = async (userId: string, postId: string) => {
 
     if (querySnapshot.empty) {
       // Adicionar curtida
+      console.log("[v0] Adding like")
       const likeDoc = await addDoc(likesRef, {
         userId,
         postId,
@@ -733,9 +740,11 @@ export const toggleLike = async (userId: string, postId: string) => {
       const updatedPostDoc = await getDoc(doc(db, "posts", postId))
       const likeCount = updatedPostDoc.data()?.likes || 0
 
+      console.log("[v0] Like added successfully, new count:", likeCount)
       return { liked: true, xpGained, likeCount }
     } else {
       // Remover curtida
+      console.log("[v0] Removing like")
       const likeDoc = querySnapshot.docs[0]
       await deleteDoc(likeDoc.ref)
 
@@ -746,6 +755,7 @@ export const toggleLike = async (userId: string, postId: string) => {
       const updatedPostDoc = await getDoc(doc(db, "posts", postId))
       const likeCount = updatedPostDoc.data()?.likes || 0
 
+      console.log("[v0] Like removed successfully, new count:", likeCount)
       return { liked: false, xpGained: 0, likeCount }
     }
   } catch (error) {
