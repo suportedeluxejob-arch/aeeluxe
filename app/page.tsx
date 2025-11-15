@@ -114,6 +114,10 @@ export default function AuthPage() {
         }
 
         if (user) {
+          // Wait a bit for Firebase Auth state to sync before redirecting
+          // This ensures useAuthState() in AuthProvider picks up the user
+          await new Promise((resolve) => setTimeout(resolve, 500))
+
           const redirect = searchParams.get("redirect") || "/feed"
           router.push(redirect)
         }
@@ -132,6 +136,10 @@ export default function AuthPage() {
         }
 
         if (user) {
+          // Wait a bit for Firebase Auth state to sync before redirecting
+          // This ensures useAuthState() in AuthProvider picks up the user
+          await new Promise((resolve) => setTimeout(resolve, 500))
+
           const redirect = searchParams.get("redirect") || "/feed"
           router.push(redirect)
         }
