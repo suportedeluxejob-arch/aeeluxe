@@ -99,30 +99,38 @@ export default function AuthPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!validateForm()) return
+    console.log('[DEBUG] [handleSubmit] Dados do formulário:', formData)
+    if (!validateForm()) {
+      console.warn('[DEBUG] [handleSubmit] Formulário inválido:', errors)
+      return
+    }
 
     setIsLoading(true)
     setErrors({})
 
     try {
       if (isLogin) {
+        console.log('[DEBUG] [handleSubmit] Tentando login normal:', formData.username)
         const { user, error } = await signInNormalUser(formData.username, formData.password)
+        console.log('[DEBUG] [handleSubmit] Resposta do signInNormalUser:', { user, error })
 
         if (error) {
           setErrors({ general: error })
+          console.error('[DEBUG] [handleSubmit] Erro no login:', error)
           return
         }
 
         if (user) {
-          // Wait a bit for Firebase Auth state to sync before redirecting
-          // This ensures useAuthState() in AuthProvider picks up the user
+          console.log('[DEBUG] [handleSubmit] Login bem-sucedido, aguardando sync do Auth...')
           await new Promise((resolve) => setTimeout(resolve, 500))
-
           const redirect = searchParams.get("redirect") || "/feed"
+          console.log('[DEBUG] [handleSubmit] Redirecionando para:', redirect)
           router.push(redirect)
         }
       } else {
+        console.log('[DEBUG] [handleSubmit] Tentando cadastro:', { username: formData.username, email: formData.email })
         const { user, error } = await createUser(formData.username, formData.email, formData.password)
+        console.log('[DEBUG] [handleSubmit] Resposta do createUser:', { user, error })
 
         if (error) {
           if (error.includes("já está em uso")) {
@@ -132,22 +140,24 @@ export default function AuthPage() {
           } else {
             setErrors({ general: error })
           }
+          console.error('[DEBUG] [handleSubmit] Erro no cadastro:', error)
           return
         }
 
         if (user) {
-          // Wait a bit for Firebase Auth state to sync before redirecting
-          // This ensures useAuthState() in AuthProvider picks up the user
+          console.log('[DEBUG] [handleSubmit] Cadastro bem-sucedido, aguardando sync do Auth...')
           await new Promise((resolve) => setTimeout(resolve, 500))
-
           const redirect = searchParams.get("redirect") || "/feed"
+          console.log('[DEBUG] [handleSubmit] Redirecionando para:', redirect)
           router.push(redirect)
         }
       }
     } catch (error) {
       setErrors({ general: "Erro interno. Tente novamente." })
+      console.error('[DEBUG] [handleSubmit] Erro inesperado:', error)
     } finally {
       setIsLoading(false)
+      console.log('[DEBUG] [handleSubmit] Fim do submit')
     }
   }
 

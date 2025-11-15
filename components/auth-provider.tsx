@@ -32,17 +32,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     pathname.startsWith("/admin") // Permite acesso a rotas admin (tem própria proteção)
 
   useEffect(() => {
+    console.log('[DEBUG] [AuthProvider] user:', user, 'loading:', loading, 'pathname:', pathname)
     if (loading) return
 
     if (user) {
-      // Usuário autenticado - salva token
+      console.log('[DEBUG] [AuthProvider] Usuário autenticado, salvando token')
       saveAuthToken()
     } else {
-      // Usuário não autenticado - remove token
+      console.log('[DEBUG] [AuthProvider] Usuário não autenticado, removendo token')
       removeAuthToken()
 
-      // Se não está em rota pública, redireciona para login
       if (!isPublicRoute) {
+        console.log('[DEBUG] [AuthProvider] Redirecionando para login:', pathname)
         router.push(`/?redirect=${pathname}`)
       }
     }

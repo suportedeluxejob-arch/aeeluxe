@@ -41,13 +41,17 @@ export const createUser = async (
   password: string,
 ): Promise<{ user: User | null; error: string | null }> => {
   try {
+    console.log('[DEBUG] [createUser] Iniciando cadastro:', { username, email })
     if (!auth) {
+      console.error('[DEBUG] [createUser] Auth não disponível')
       return { user: null, error: "Serviço de autenticação não disponível" }
     }
 
     // Check if username already exists
     const existingUser = await getUserByUsername(username)
+    console.log('[DEBUG] [createUser] existingUser:', existingUser)
     if (existingUser) {
+      console.warn('[DEBUG] [createUser] Nome de usuário já está em uso:', username)
       return { user: null, error: "Nome de usuário já está em uso" }
     }
 
@@ -55,9 +59,9 @@ export const createUser = async (
     let userCredential
     try {
       userCredential = await createUserWithEmailAndPassword(auth, email, password)
-      console.log("[v0] Firebase Auth user created:", userCredential.user.uid)
+      console.log("[DEBUG] [createUser] Firebase Auth user criado:", userCredential.user.uid)
     } catch (authError: any) {
-      console.error("[v0] Firebase auth error:", authError.code, authError.message)
+      console.error("[DEBUG] [createUser] Erro no Firebase Auth:", authError.code, authError.message)
       if (authError.code === "auth/email-already-in-use") {
         return { user: null, error: "Email já está em uso" }
       }
@@ -75,9 +79,9 @@ export const createUser = async (
       await updateProfile(userCredential.user, {
         displayName: username,
       })
-      console.log("[v0] Firebase profile updated")
+      console.log("[DEBUG] [createUser] Firebase profile atualizado")
     } catch (profileError: any) {
-      console.error("[v0] Error updating profile:", profileError)
+      console.error("[DEBUG] [createUser] Erro ao atualizar profile:", profileError)
     }
 
     // Prepare user profile data
@@ -90,19 +94,20 @@ export const createUser = async (
       createdAt: new Date(),
       userType: "user" as const,
     }
+    console.log('[DEBUG] [createUser] userProfile:', userProfile)
 
     // Ensure Firestore document is created
     try {
       await ensureUserDocument(userCredential.user.uid, userProfile)
-      console.log("[v0] Firestore user document created")
+      console.log("[DEBUG] [createUser] Documento Firestore criado")
     } catch (firestoreError: any) {
-      console.error("[v0] Error creating Firestore document:", firestoreError)
+      console.error("[DEBUG] [createUser] Erro ao criar documento Firestore:", firestoreError)
       // If Firestore fails, delete the Firebase Auth user to rollback
       try {
         await userCredential.user.delete()
-        console.log("[v0] Rolled back Firebase Auth user due to Firestore failure")
+        console.log("[DEBUG] [createUser] Usuário do Auth removido após falha no Firestore")
       } catch (deleteError) {
-        console.error("[v0] Error deleting user after Firestore failure:", deleteError)
+        console.error("[DEBUG] [createUser] Erro ao deletar usuário após falha no Firestore:", deleteError)
       }
       return { user: null, error: "Erro ao criar conta. Tente novamente." }
     }
@@ -110,16 +115,16 @@ export const createUser = async (
     // Create welcome notification
     try {
       await createWelcomeNotification(userCredential.user.uid)
-      console.log("[v0] Welcome notification created")
+      console.log("[DEBUG] [createUser] Notificação de boas-vindas criada")
     } catch (notifError: any) {
-      console.error("[v0] Error creating welcome notification:", notifError)
+      console.error("[DEBUG] [createUser] Erro ao criar notificação de boas-vindas:", notifError)
       // Don't fail the entire signup if notification fails
     }
 
-    console.log("[v0] Account creation successful for user:", userCredential.user.uid)
+    console.log("[DEBUG] [createUser] Cadastro finalizado com sucesso para:", userCredential.user.uid)
     return { user: userCredential.user, error: null }
   } catch (error: any) {
-    console.error("[v0] Error creating user:", error)
+    console.error("[DEBUG] [createUser] Erro geral:", error)
     return { user: null, error: "Erro ao criar conta. Tente novamente." }
   }
 }
@@ -132,21 +137,42 @@ export const createCreator = async (
   referralCode?: string,
 ): Promise<{ user: User | null; error: string | null }> => {
   try {
+    console.log('[DEBUG] [createCreator] Iniciando cadastro de criadora:', { username, displayName, bio, referralCode })
     if (!auth) {
+      console.error('[DEBUG] [createCreator] Auth não disponível')
       return { user: null, error: "Serviço de autenticação não disponível" }
     }
 
     const existingUser = await getUserByUsername(username)
+    console.log('[DEBUG] [createCreator] existingUser:', existingUser)
     if (existingUser) {
+      console.warn('[DEBUG] [createCreator] Nome de usuário já está em uso:', username)
       return { user: null, error: "Nome de usuário já está em uso" }
     }
 
     const email = `${username}@deluxeisa.app`
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password)
+    let userCredential
+    try {
+      userCredential = await createUserWithEmailAndPassword(auth, email, password)
+      console.log('[DEBUG] [createCreator] Firebase Auth user criado:', userCredential.user.uid)
+    } catch (authError: any) {
+      console.error('[DEBUG] [createCreator] Erro no Firebase Auth:', authError.code, authError.message)
+      if (authError.code === "auth/email-already-in-use") {
+        return { user: null, error: "Email já está em uso" }
+      }
+      if (authError.code === "auth/weak-password") {
+        return { user: null, error: "Senha muito fraca. Use pelo menos 6 caracteres" }
+      }
+      if (authError.code === "auth/invalid-email") {
+        return { user: null, error: "Email inválido" }
+      }
+      throw authError
+    }
 
     await updateProfile(userCredential.user, {
       displayName: displayName,
     })
+    console.log('[DEBUG] [createCreator] Firebase profile atualizado')
 
     const creatorProfile = {
       uid: userCredential.user.uid,
@@ -160,17 +186,23 @@ export const createCreator = async (
       followerCount: 0,
       contentCount: 0,
     }
+    console.log('[DEBUG] [createCreator] creatorProfile:', creatorProfile)
 
     await createCreatorProfile(creatorProfile)
+    console.log('[DEBUG] [createCreator] Documento de criadora criado no Firestore')
 
     if (referralCode) {
       await addCreatorToNetworkWithCode(userCredential.user.uid, username, referralCode)
+      console.log('[DEBUG] [createCreator] Criadora adicionada à rede com referralCode:', referralCode)
     }
 
     await createWelcomeNotification(userCredential.user.uid)
+    console.log('[DEBUG] [createCreator] Notificação de boas-vindas criada')
 
+    console.log('[DEBUG] [createCreator] Cadastro de criadora finalizado com sucesso para:', userCredential.user.uid)
     return { user: userCredential.user, error: null }
   } catch (error: any) {
+    console.error('[DEBUG] [createCreator] Erro geral:', error)
     if (error.code === "auth/email-already-in-use") {
       return { user: null, error: "Email já está em uso" }
     }
@@ -189,17 +221,27 @@ export const signInUser = async (
   password: string,
 ): Promise<{ user: User | null; error: string | null }> => {
   try {
+    console.log('[DEBUG] [signInUser] Tentando login:', { username })
     if (!auth) {
+      console.error('[DEBUG] [signInUser] Auth não disponível')
       return { user: null, error: "Serviço de autenticação não disponível" }
     }
 
     const email = `${username}@deluxeisa.app`
-    const userCredential = await signInWithEmailAndPassword(auth, email, password)
+    let userCredential
+    try {
+      userCredential = await signInWithEmailAndPassword(auth, email, password)
+      console.log('[DEBUG] [signInUser] Login Auth bem-sucedido:', userCredential.user.uid)
+    } catch (authError: any) {
+      console.error('[DEBUG] [signInUser] Erro no Auth:', authError.code, authError.message)
+      return { user: null, error: "Usuário ou senha incorretos" }
+    }
 
     if (!userCredential.user.displayName) {
       await updateProfile(userCredential.user, {
         displayName: username,
       })
+      console.log('[DEBUG] [signInUser] displayName atualizado')
     }
 
     await ensureUserDocument(userCredential.user.uid, {
@@ -210,9 +252,11 @@ export const signInUser = async (
       email,
       createdAt: new Date(),
     })
+    console.log('[DEBUG] [signInUser] Documento Firestore garantido')
 
     return { user: userCredential.user, error: null }
   } catch (error: any) {
+    console.error('[DEBUG] [signInUser] Erro geral:', error)
     return { user: null, error: "Usuário ou senha incorretos" }
   }
 }
@@ -222,7 +266,9 @@ export const signInNormalUser = async (
   password: string,
 ): Promise<{ user: User | null; error: string | null }> => {
   try {
+    console.log('[DEBUG] [signInNormalUser] Tentando login:', { identifier })
     if (!auth) {
+      console.error('[DEBUG] [signInNormalUser] Auth não disponível')
       return { user: null, error: "Serviço de autenticação não disponível" }
     }
 
@@ -230,68 +276,58 @@ export const signInNormalUser = async (
     let username: string | undefined
     let userDoc: any = null
 
-    console.log("[v0] Sign in attempt with identifier:", identifier)
-
     // Detect if input is an email or username
     if (identifier.includes("@")) {
-      // If identifier is an email, use it directly
       email = identifier
-      // Try to find the user by email to get username
       userDoc = await getUserByEmail(identifier)
+      console.log('[DEBUG] [signInNormalUser] userDoc por email:', userDoc)
       if (userDoc) {
         username = userDoc.username
-        console.log("[v0] Found user by email, username:", username)
+        console.log('[DEBUG] [signInNormalUser] username encontrado:', username)
       }
     } else {
-      // If identifier is a username, fetch the user document to get the email
       username = identifier
       userDoc = await getUserByUsername(identifier)
+      console.log('[DEBUG] [signInNormalUser] userDoc por username:', userDoc)
       if (userDoc) {
         email = userDoc.email
-        console.log("[v0] Found user by username, email:", email)
+        console.log('[DEBUG] [signInNormalUser] email encontrado:', email)
       } else {
-        // Username not found in Firestore, but might exist in Firebase Auth
-        // We'll try common email patterns
-        console.error("[v0] Username not found in Firestore:", identifier)
+        console.error('[DEBUG] [signInNormalUser] Username não encontrado no Firestore:', identifier)
         return { user: null, error: "Usuário ou senha incorretos" }
       }
     }
 
-    // If we don't have an email by now, we can't proceed
     if (!email) {
-      console.error("[v0] Could not determine email for identifier:", identifier)
+      console.error('[DEBUG] [signInNormalUser] Não foi possível determinar o email para:', identifier)
       return { user: null, error: "Usuário ou senha incorretos" }
     }
 
-    // Try to authenticate with Firebase Auth using the email
     let userCredential
     try {
-      console.log("[v0] Attempting Firebase Auth sign in with email:", email)
       userCredential = await signInWithEmailAndPassword(auth, email, password)
-      console.log("[v0] Firebase Auth sign in successful, user UID:", userCredential.user.uid)
+      console.log('[DEBUG] [signInNormalUser] Login Auth bem-sucedido:', userCredential.user.uid)
     } catch (authError: any) {
-      console.error("[v0] Firebase auth error:", authError.code, authError.message)
+      console.error('[DEBUG] [signInNormalUser] Erro no Auth:', authError.code, authError.message)
       return { user: null, error: "Usuário ou senha incorretos" }
     }
 
-    // Check if user is a creator
     const isCreator = await isUserCreator(userCredential.user.uid)
+    console.log('[DEBUG] [signInNormalUser] isCreator:', isCreator)
 
     if (isCreator) {
-      console.log("[v0] User is a creator, rejecting normal login")
+      console.warn('[DEBUG] [signInNormalUser] Conta de criadora detectada, bloqueando login normal')
       await signOut(auth)
       return { user: null, error: "Esta é uma conta de criadora. Use o login de criadora." }
     }
 
-    // Update displayName if not set
     if (!userCredential.user.displayName) {
       await updateProfile(userCredential.user, {
         displayName: username || identifier,
       })
-      console.log("[v0] Updated display name")
+      console.log('[DEBUG] [signInNormalUser] displayName atualizado')
     }
 
-    // Ensure user document exists with correct data
     await ensureUserDocument(userCredential.user.uid, {
       username: username || identifier,
       displayName: userCredential.user.displayName || username || identifier,
@@ -301,12 +337,12 @@ export const signInNormalUser = async (
       createdAt: userDoc?.createdAt || new Date(),
       userType: userDoc?.userType || "user",
     })
-    console.log("[v0] User document ensured in Firestore")
+    console.log('[DEBUG] [signInNormalUser] Documento Firestore garantido')
 
-    console.log("[v0] Sign in successful for user:", userCredential.user.uid)
+    console.log('[DEBUG] [signInNormalUser] Login finalizado com sucesso para:', userCredential.user.uid)
     return { user: userCredential.user, error: null }
   } catch (error: any) {
-    console.error("[v0] Error signing in normal user:", error)
+    console.error('[DEBUG] [signInNormalUser] Erro geral:', error)
     return { user: null, error: "Usuário ou senha incorretos" }
   }
 }
@@ -316,22 +352,35 @@ export const signInCreator = async (
   password: string,
 ): Promise<{ user: User | null; error: string | null }> => {
   try {
+    console.log('[DEBUG] [signInCreator] Tentando login de criadora:', { username })
     if (!auth) {
+      console.error('[DEBUG] [signInCreator] Auth não disponível')
       return { user: null, error: "Serviço de autenticação não disponível" }
     }
 
     const email = `${username}@deluxeisa.app`
-    const userCredential = await signInWithEmailAndPassword(auth, email, password)
+    let userCredential
+    try {
+      userCredential = await signInWithEmailAndPassword(auth, email, password)
+      console.log('[DEBUG] [signInCreator] Login Auth bem-sucedido:', userCredential.user.uid)
+    } catch (authError: any) {
+      console.error('[DEBUG] [signInCreator] Erro no Auth:', authError.code, authError.message)
+      return { user: null, error: "Usuário ou senha incorretos" }
+    }
 
     const isCreator = await isUserCreator(userCredential.user.uid)
+    console.log('[DEBUG] [signInCreator] isCreator:', isCreator)
 
     if (!isCreator) {
+      console.warn('[DEBUG] [signInCreator] Conta não é de criadora, bloqueando login de criadora')
       await signOut(auth)
       return { user: null, error: "Esta conta não é de criadora. Use o login normal ou cadastre-se como criadora." }
     }
 
+    console.log('[DEBUG] [signInCreator] Login de criadora finalizado com sucesso para:', userCredential.user.uid)
     return { user: userCredential.user, error: null }
   } catch (error: any) {
+    console.error('[DEBUG] [signInCreator] Erro geral:', error)
     return { user: null, error: "Usuário ou senha incorretos" }
   }
 }
