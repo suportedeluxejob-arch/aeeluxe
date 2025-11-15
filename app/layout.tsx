@@ -9,6 +9,7 @@ import { ErrorBoundary } from "@/components/error-boundary"
 import { ClientProviders } from "@/components/client-providers"
 import { AuthProvider } from "@/components/auth-provider"
 import { UserProvider } from "@/lib/contexts/user-context"
+import { UserProfileProvider } from "@/components/user-profile-context"
 import "./globals.css"
 
 const poppins = Poppins({
@@ -79,13 +80,15 @@ export default function RootLayout({
         <ErrorBoundary>
           <ToastProvider>
             <AuthProvider>
-              <UserProvider>
-                <RealTimeProvider>
-                  <ClientProviders>
-                    <Suspense fallback={null}>{children}</Suspense>
-                  </ClientProviders>
-                </RealTimeProvider>
-              </UserProvider>
+              <UserProfileProvider>
+                <UserProvider>
+                  <RealTimeProvider>
+                    <ClientProviders>
+                      <Suspense fallback={null}>{children}</Suspense>
+                    </ClientProviders>
+                  </RealTimeProvider>
+                </UserProvider>
+              </UserProfileProvider>
             </AuthProvider>
           </ToastProvider>
         </ErrorBoundary>

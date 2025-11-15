@@ -10,6 +10,7 @@ import { Settings, MessageCircle, Repeat2 } from "lucide-react"
 import Link from "next/link"
 import { TopNavigation } from "@/components/top-navigation"
 import { BottomNavigation } from "@/components/bottom-navigation"
+import { useUserProfileContext } from "@/components/user-profile-context"
 import { getCurrentUser, syncUserLevel, type TemporaryStory } from "@/lib/firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
 import { UserProgressSection } from "@/components/user-progress-section"
@@ -42,12 +43,10 @@ interface Retweet {
   createdAt: any
 }
 
-export default function UserProfile() {
   const router = useRouter()
   const params = useParams()
   const username = params.username as string
   const [currentUser, setCurrentUser] = useState<any>(null)
-  const [currentUserProfile, setCurrentUserProfile] = useState<any>(null)
   const [isOwnProfile, setIsOwnProfile] = useState(false)
   const [userRetweets, setUserRetweets] = useState<Retweet[]>([])
   const [retweetsLoading, setRetweetsLoading] = useState(true)
@@ -59,35 +58,21 @@ export default function UserProfile() {
   const [storiesLoading, setStoriesLoading] = useState(true)
   const [hasUnviewed, setHasUnviewed] = useState(false)
 
+  const { userProfile: currentUserProfile } = useUserProfileContext()
   const { user: profileUser, isLoading, isError } = useUserProfile(username)
-  const { user: currentProfile } = useUserProfileByUid(currentUser?.uid)
 
   const [showProfileMenu, setShowProfileMenu] = useState(false)
   const [showProfilePictureViewer, setShowProfilePictureViewer] = useState(false)
 
   useEffect(() => {
-    const loadCurrentUser = async () => {
-      try {
-        const user = await getCurrentUser()
-        if (!user) {
-          router.push("/")
-          return
-        }
-        setCurrentUser(user)
-      } catch (error) {
-        console.error("Error loading current user:", error)
-        router.push("/")
-      }
+    // currentUser não é mais necessário, pois usamos o contexto global
+    // Mantemos apenas o redirecionamento se não estiver autenticado
+    if (currentUserProfile === null) {
+      router.push("/")
     }
+  }, [currentUserProfile, router])
 
-    loadCurrentUser()
-  }, [router])
-
-  useEffect(() => {
-    if (currentProfile) {
-      setCurrentUserProfile(currentProfile)
-    }
-  }, [currentProfile])
+  // Removido: currentUserProfile agora vem do contexto global
 
   useEffect(() => {
     if (isError) {
@@ -101,14 +86,13 @@ export default function UserProfile() {
   }, [isError, router, toast])
 
   useEffect(() => {
-    if (currentUser && profileUser) {
-      setIsOwnProfile(currentUser.uid === profileUser.uid)
-
-      if (currentUser.uid === profileUser.uid) {
-        syncUserLevel(currentUser.uid)
+    if (currentUserProfile && profileUser) {
+      setIsOwnProfile(currentUserProfile.uid === profileUser.uid)
+      if (currentUserProfile.uid === profileUser.uid) {
+        syncUserLevel(currentUserProfile.uid)
       }
     }
-  }, [currentUser, profileUser])
+  }, [currentUserProfile, profileUser])
 
   useEffect(() => {
     if (!profileUser) return
