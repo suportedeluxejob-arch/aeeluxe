@@ -1,6 +1,6 @@
 "use server"
 
-import { stripe } from "@/lib/stripe"
+import { getStripe } from "@/lib/stripe"
 import { createTip } from "@/lib/firebase/firestore"
 
 export async function createTipPaymentIntent(data: {
@@ -16,6 +16,7 @@ export async function createTipPaymentIntent(data: {
 
     const amountInCents = Math.round(data.amount * 100)
 
+    const stripe = getStripe()
     const paymentIntent = await stripe.paymentIntents.create({
       amount: amountInCents,
       currency: "brl",
@@ -68,6 +69,7 @@ export async function createTipPayment(data: {
 
     const amountInCents = Math.round(data.amount * 100)
 
+    const stripe = getStripe()
     const paymentIntent = await stripe.paymentIntents.create({
       amount: amountInCents,
       currency: "brl",

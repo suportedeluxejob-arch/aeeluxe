@@ -1,6 +1,6 @@
 "use server"
 
-import { stripe } from "@/lib/stripe"
+import { getStripe } from "@/lib/stripe"
 import { getSubscriptionProduct } from "@/lib/stripe-products"
 import { getServiceProduct } from "@/lib/service-products"
 
@@ -27,6 +27,7 @@ export async function createSubscriptionCheckout(
 
     appUrl = appUrl.replace(/^(https?):([^/])/, "$1://$2")
 
+    const stripe = getStripe()
     const session = await stripe.checkout.sessions.create({
       ui_mode: "embedded",
       mode: "subscription",
@@ -71,6 +72,7 @@ export async function createSubscriptionCheckout(
 
 export async function getCheckoutSession(sessionId: string) {
   try {
+    const stripe = getStripe()
     const session = await stripe.checkout.sessions.retrieve(sessionId)
     return session
   } catch (error) {
@@ -98,6 +100,7 @@ export async function createServiceCheckout(userId: string, creatorId: string, s
 
     appUrl = appUrl.replace(/^(https?):([^/])/, "$1://$2")
 
+    const stripe = getStripe()
     const session = await stripe.checkout.sessions.create({
       ui_mode: "embedded",
       mode: "payment",

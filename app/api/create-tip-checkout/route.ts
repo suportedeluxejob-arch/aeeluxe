@@ -1,10 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import Stripe from "stripe"
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2024-11-20.acacia",
-})
-
 const TIP_PRICE_IDS: Record<number, string> = {
   5: "price_1SKWre5I63txB0RG1ufDFaCb",
   10: "price_1SKWsX5I63txB0RGOXK5La8q",
@@ -15,6 +11,16 @@ const TIP_PRICE_IDS: Record<number, string> = {
 
 export async function POST(req: NextRequest) {
   try {
+    const stripeKey = process.env.STRIPE_SECRET_KEY
+    if (!stripeKey) {
+      console.error("STRIPE_SECRET_KEY não definido no ambiente de build/runtime")
+      return NextResponse.json({ error: "Stripe não configurado" }, { status: 500 })
+    }
+
+    const stripe = new Stripe(stripeKey, {
+      apiVersion: "2024-11-20.acacia",
+    })
+
     const { amount, creatorId, creatorUsername, postId, message, userId } = await req.json()
 
     if (!TIP_PRICE_IDS[amount]) {

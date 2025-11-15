@@ -1,14 +1,14 @@
 import { type NextRequest, NextResponse } from "next/server"
 import Stripe from "stripe"
+import { getStripe } from "@/lib/stripe"
 import { doc, updateDoc, getDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase/config"
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2024-11-20.acacia",
-})
+// Stripe será inicializado dentro do handler para evitar erro em tempo de build
 
 export async function POST(request: NextRequest) {
   try {
+    const stripe = getStripe()
     const { sessionId, userId } = await request.json()
 
     if (!sessionId || !userId) {

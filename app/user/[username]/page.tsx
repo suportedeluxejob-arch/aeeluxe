@@ -43,6 +43,8 @@ interface Retweet {
   createdAt: any
 }
 
+export default function UserProfile() {
+
   const router = useRouter()
   const params = useParams()
   const username = params.username as string
