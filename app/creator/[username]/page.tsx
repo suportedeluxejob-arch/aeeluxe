@@ -444,6 +444,12 @@ export default function CreatorProfilePage() {
       return
     }
 
+    // Verificar se o usuário é criador - não pode interagir
+    if (currentUserProfile?.userType === "creator") {
+      showWarning("Ação não permitida", "Criadoras não podem curtir posts")
+      return
+    }
+
     try {
       const result = await handleLikeToggle(postId)
 
@@ -477,21 +483,21 @@ export default function CreatorProfilePage() {
       return
     }
 
+    // Verificar se o usuário é criador - não pode interagir
+    if (currentUserProfile?.userType === "creator") {
+      showWarning("Ação não permitida", "Criadoras não podem comentar em posts")
+      return
+    }
+
     if (!currentUserProfile || !creator) {
       showError("Erro", "Não foi possível verificar seu perfil")
       return
     }
 
-    const hasSubscription = canAccessCreatorContent(
-      userSubscriptions,
-      creator.uid,
-      "gold", // Gold tier required for comments
-    )
-
-    if (!hasSubscription) {
+    if (!canComment()) {
       showWarning(
-        "Assinatura Necessária",
-        `Você precisa assinar ${creator.displayName} no nível Gold ou superior para comentar em seus posts.`,
+        "Nível insuficiente",
+        "Você precisa assinar este criador no nível Gold ou superior para comentar em seus posts.",
       )
       return
     }
@@ -507,8 +513,22 @@ export default function CreatorProfilePage() {
       return
     }
 
+    // Verificar se o usuário é criador - não pode interagir
+    if (currentUserProfile?.userType === "creator") {
+      showWarning("Ação não permitida", "Criadoras não podem retuitar posts")
+      return
+    }
+
     if (!currentUserProfile || !creator) {
       showError("Erro", "Não foi possível verificar seu perfil")
+      return
+    }
+
+    if (!canRetweet()) {
+      showWarning(
+        "Nível insuficiente",
+        "Você precisa assinar este criador no nível Prata ou superior para retuitar seus posts.",
+      )
       return
     }
 
@@ -547,6 +567,11 @@ export default function CreatorProfilePage() {
   const canComment = () => {
     if (!currentUserProfile || !creator) return false
     return canAccessCreatorContent(userSubscriptions, creator.uid, "gold")
+  }
+
+  const canRetweet = () => {
+    if (!currentUserProfile || !creator) return false
+    return canAccessCreatorContent(userSubscriptions, creator.uid, "prata")
   }
 
   const hasContentAccess = useCallback(
@@ -1231,6 +1256,7 @@ export default function CreatorProfilePage() {
                                     : "text-muted-foreground hover:text-green-500"
                                 }`}
                                 onClick={() => post.id && handleShare(post.id)}
+                                disabled={!canRetweet()}
                               >
                                 <RefreshCw className="h-5 w-5" />
                               </Button>

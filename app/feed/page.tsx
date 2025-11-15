@@ -256,6 +256,12 @@ export default function FeedPage() {
       return
     }
 
+    // Verificar se o usuário é criador - não pode interagir
+    if (userProfile?.userType === "creator") {
+      showWarning("Ação não permitida", "Criadoras não podem curtir posts")
+      return
+    }
+
     try {
       const result = await handleLikeToggle(postId)
 
@@ -285,16 +291,18 @@ export default function FeedPage() {
       return
     }
 
+    // Verificar se o usuário é criador - não pode interagir
+    if (userProfile?.userType === "creator") {
+      showWarning("Ação não permitida", "Criadoras não podem comentar em posts")
+      return
+    }
+
     if (!userProfile) {
       showError("Erro", "Perfil do usuário não carregado")
       return
     }
 
-    const userLevel = userProfile.level || "bronze"
-    const levelHierarchy = ["bronze", "prata", "gold", "platinum", "diamante"]
-    const userLevelIndex = levelHierarchy.indexOf(userLevel.toLowerCase())
-
-    if (userLevelIndex < 2) {
+    if (!canComment(undefined, undefined)) {
       showWarning(
         "Nível insuficiente",
         "Você precisa ser nível Gold ou superior para comentar. Curta mais posts para subir de nível!",
@@ -333,6 +341,12 @@ export default function FeedPage() {
       return
     }
 
+    // Verificar se o usuário é criador - não pode interagir
+    if (userProfile?.userType === "creator") {
+      showWarning("Ação não permitida", "Criadoras não podem retuitar posts")
+      return
+    }
+
     if (!userProfile) {
       showError("Erro", "Perfil do usuário não carregado")
       return
@@ -341,6 +355,14 @@ export default function FeedPage() {
     try {
       const post = posts.find((p) => p.id === postId)
       if (!post) return
+
+      if (!canRetweet(undefined, post.authorId)) {
+        showWarning(
+          "Nível insuficiente",
+          "Você precisa ser nível Prata ou superior para retuitar. Curta mais posts para subir de nível!",
+        )
+        return
+      }
 
       const result = await handleRetweetToggle(postId, post.authorId)
 
@@ -440,6 +462,18 @@ export default function FeedPage() {
       postAuthorId,
       requiredLevel as "bronze" | "prata" | "gold" | "platinum" | "diamante",
     )
+  }
+
+  const canComment = (requiredLevel?: string, postAuthorId?: string) => {
+    if (!userProfile) return false
+    // Verifica se tem acesso Gold ou superior
+    return hasContentAccess("gold", postAuthorId)
+  }
+
+  const canRetweet = (requiredLevel?: string, postAuthorId?: string) => {
+    if (!userProfile) return false
+    // Verifica se tem acesso Prata ou superior
+    return hasContentAccess("prata", postAuthorId)
   }
 
   const getProfileLink = (username: string, authorUserType?: string) => {
@@ -729,15 +763,7 @@ export default function FeedPage() {
                                 : "text-muted-foreground/50 cursor-not-allowed"
                             }`}
                             onClick={() => post.id && handleComment(post.id)}
-                            disabled={
-                              !userProfile ||
-                              !userProfile.level ||
-                              !canAccessCreatorContent(
-                                userSubscriptions,
-                                post.authorId,
-                                userProfile.level as "bronze" | "prata" | "gold" | "platinum" | "diamante",
-                              )
-                            }
+                            disabled={!canComment(undefined, post.authorId)}
                           >
                             <MessageCircle className="h-4 w-4 sm:h-5 sm:w-5" />
                             <span className="ml-1 text-[10px] sm:text-xs">{formatNumber(post.comments || 0)}</span>
@@ -767,6 +793,7 @@ export default function FeedPage() {
                               : "text-muted-foreground/50 cursor-not-allowed"
                           }`}
                           onClick={() => post.id && handleShare(post.id)}
+                          disabled={!canRetweet(undefined, post.authorId)}
                         >
                           <RefreshCw className="h-4 w-4 sm:h-5 sm:w-5" />
                         </Button>
