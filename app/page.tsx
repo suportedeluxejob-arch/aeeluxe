@@ -64,7 +64,9 @@ export default function AuthPage() {
     const newErrors: Record<string, string> = {}
 
     if (!formData.username) {
-      newErrors.username = "Nome de usuário ou email é obrigatório"
+      newErrors.username = isLogin
+        ? "Nome de usuário ou email é obrigatório"
+        : "Nome de usuário é obrigatório"
     }
 
     if (!isLogin) {
@@ -180,11 +182,13 @@ export default function AuthPage() {
               )}
 
               <div className="space-y-2 fade-in">
-                <Label htmlFor="username">Nome de usuário ou email</Label>
+                <Label htmlFor="username">
+                  {isLogin ? "Nome de usuário ou email" : "Nome de usuário"}
+                </Label>
                 <Input
                   id="username"
                   type="text"
-                  placeholder="Nome de usuário ou email"
+                  placeholder={isLogin ? "Nome de usuário ou email" : "Seu nome de usuário"}
                   value={formData.username}
                   onChange={(e) => handleInputChange("username", e.target.value)}
                   className="rounded-full border-border focus:ring-primary focus:border-primary glow-pink-hover"
