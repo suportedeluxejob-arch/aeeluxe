@@ -63,6 +63,7 @@ export const createUser = async (
       profileImage: getRandomAvatar(),
       email,
       createdAt: new Date(),
+      userType: "user" as const,
     }
 
     await ensureUserDocument(userCredential.user.uid, userProfile)
@@ -186,29 +187,33 @@ export const signInNormalUser = async (
       return { user: null, error: "Serviço de autenticação não disponível" }
     }
 
-    let userDoc: any = null
     let email: string | undefined
     let username: string | undefined
 
-    // Detect if input is an email
+    // Detect if input is an email or username and fetch the actual email
     if (identifier.includes("@")) {
-      userDoc = await getUserByEmail(identifier)
+      // If identifier is an email, use it directly
+      email = identifier
+    } else {
+      // If identifier is a username, fetch the user document to get the email
+      const userDoc = await getUserByUsername(identifier)
       if (!userDoc) {
         return { user: null, error: "Usuário ou senha incorretos" }
       }
       email = userDoc.email
       username = userDoc.username
-    } else {
-      userDoc = await getUserByUsername(identifier)
-      if (!userDoc) {
-        return { user: null, error: "Usuário ou senha incorretos" }
-      }
-      email = userDoc.email
-      username = userDoc.username || identifier
     }
 
-    const userCredential = await signInWithEmailAndPassword(auth, email!, password)
+    // Try to authenticate with Firebase Auth using the email
+    let userCredential
+    try {
+      userCredential = await signInWithEmailAndPassword(auth, email, password)
+    } catch (authError: any) {
+      console.error("[v0] Firebase auth error:", authError.code)
+      return { user: null, error: "Usuário ou senha incorretos" }
+    }
 
+    // Check if user is a creator
     const isCreator = await isUserCreator(userCredential.user.uid)
 
     if (isCreator) {
@@ -216,19 +221,25 @@ export const signInNormalUser = async (
       return { user: null, error: "Esta é uma conta de criadora. Use o login de criadora." }
     }
 
-    if (!userCredential.user.displayName && username) {
+    // Update displayName if not set
+    if (!userCredential.user.displayName) {
       await updateProfile(userCredential.user, {
-        displayName: username,
+        displayName: username || identifier,
       })
     }
 
+    // Fetch user document from Firestore
+    const userDoc = await getUserByUsername(username || identifier)
+    
+    // Ensure user document exists with correct data
     await ensureUserDocument(userCredential.user.uid, {
       username: username || identifier,
-      displayName: username || identifier,
+      displayName: userCredential.user.displayName || username || identifier,
       bio: userDoc?.bio || "",
       profileImage: userDoc?.profileImage || getRandomAvatar(),
-      email: email || identifier,
+      email: email,
       createdAt: userDoc?.createdAt || new Date(),
+      userType: userDoc?.userType || "user",
     })
 
     return { user: userCredential.user, error: null }
